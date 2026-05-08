@@ -1,2 +1,15 @@
 *.xlsx
 *.xls
+
+# Generated outputs (regenerate locally with generate_smb_programme.sh)
+web/
+qr/
+sections/
+smbh_main.tex
+smbh_main.pdf
+smbh_main.aux
+smbh_main.log
+smbh_main.out
+smbh_main.toc
+smb_programme.tex
+smb_programme.pdf

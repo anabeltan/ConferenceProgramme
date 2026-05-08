@@ -31,3 +31,7 @@ if command -v lualatex &>/dev/null; then
 else
   printf 'lualatex not found — skipping PDF compilation of smbh_main.tex\n'
 fi
+
+# --- Mobile web schedule + QR codes ---
+python generate_smbh_web.py "$WORKBOOK"
+printf 'Web pages in web/  |  QR codes and door signs in qr/\n'
