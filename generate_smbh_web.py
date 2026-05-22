@@ -11,7 +11,7 @@ Output:
   qr/day1_qr.png … qr/day5_qr.png  — QR code PNGs (printable)
   qr/day1_door.html … qr/day5_door.html  — printable door signs
 
-Hosted at: https://anabeltan.github.io/SMBH2026/
+Hosted at: https://anabeltan.github.io/
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from generate_programme_tex import Entry, build_entries
 # Config
 # ---------------------------------------------------------------------------
 
-BASE_URL = "https://anabeltan.github.io/SMBH2026"
+BASE_URL = "https://anabeltan.github.io"
 
 # Must match exact day_label strings produced by build_entries()
 DAY_CONFIG = [

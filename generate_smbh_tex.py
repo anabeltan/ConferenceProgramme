@@ -15,6 +15,7 @@ import argparse
 import re
 import sys
 import textwrap
+import unicodedata
 from collections import defaultdict
 from pathlib import Path
 
@@ -61,6 +62,35 @@ def day_name_from_label(day_label: str) -> str:
     return day_label.split(",")[0].strip() if "," in day_label else day_label
 
 
+TEXT_REPLACEMENTS = {
+    "\u2061": "",
+    "⍺": "α",
+    "⁻": "-",
+    "☉": "sun",
+}
+
+
+def normalize_programme_text(value: str) -> str:
+    text = unicodedata.normalize("NFKC", value or "")
+    for source, target in TEXT_REPLACEMENTS.items():
+        text = text.replace(source, target)
+    return text
+
+
+def programme_tex(value: str) -> str:
+    return latex_escape(normalize_programme_text(value))
+
+
+def programme_paragraphs(value: str) -> str:
+    normalized = normalize_programme_text(value)
+    parts = [programme_tex(part.strip()) for part in normalized.split("\n\n") if part.strip()]
+    return "\n\n".join(parts) if parts else "Not provided."
+
+
+def is_poster_entry(entry: Entry) -> bool:
+    return "Poster" in entry.presentation_type
+
+
 # ---------------------------------------------------------------------------
 # LaTeX preamble / main document
 # ---------------------------------------------------------------------------
@@ -87,13 +117,11 @@ PREAMBLE = r"""% !TEX TS-program = lualatex
 \usepackage{fancyhdr}
 \IfFileExists{eso-pic.sty}{\usepackage{eso-pic}}{}
 
-\IfFontExistsTF{Palatino}{
-  \setmainfont{Palatino}
-}{\IfFontExistsTF{TeX Gyre Pagella}{
+\IfFontExistsTF{TeX Gyre Pagella}{
   \setmainfont{TeX Gyre Pagella}
 }{
   \setmainfont{Latin Modern Roman}
-}}
+}
 \IfFontExistsTF{Avenir Next}{
   \setsansfont{Avenir Next}
 }{\IfFontExistsTF{TeX Gyre Heros}{
@@ -101,45 +129,63 @@ PREAMBLE = r"""% !TEX TS-program = lualatex
 }{
   \setsansfont{Latin Modern Sans}
 }}
+\IfFontExistsTF{DejaVu Sans}{
+  \newfontfamily\smbhnotefont{DejaVu Sans}
+}{
+  \newfontfamily\smbhnotefont{Latin Modern Sans}
+}
 
 % ---- Colours ---------------------------------------------------------------
-\definecolor{smbhblue}{HTML}{0E2A45}
-\definecolor{smbhteal}{HTML}{1E6878}
+\definecolor{smbhblue}{HTML}{1C4E80}
+\definecolor{smbhteal}{HTML}{2E7D8A}
 \definecolor{smbhgold}{HTML}{C8922A}
-\definecolor{smbhdeep}{HTML}{07111F}
-\definecolor{paperwarm}{HTML}{F7F4EC}
-\definecolor{lightrule}{HTML}{D7DEE7}
-\definecolor{softpanel}{HTML}{EEF4F5}
-\definecolor{nightbg}{HTML}{07111F}
-\definecolor{nightpanel}{HTML}{10243A}
-\definecolor{starlight}{HTML}{F8F4E8}
-\definecolor{nebulablue}{HTML}{1E476E}
-\definecolor{nebulateal}{HTML}{2D7C8B}
-\definecolor{auroraglow}{HTML}{5FA8B8}
-\definecolor{deepviolet}{HTML}{1A2741}
-\definecolor{nebulaedge}{HTML}{DDECF2}
+\definecolor{smbhdeep}{HTML}{16324A}
+\definecolor{paperwarm}{HTML}{FBF8F1}
+\definecolor{lightrule}{HTML}{C9DCE8}
+\definecolor{softpanel}{HTML}{EFF6FB}
+\definecolor{nightbg}{HTML}{EAF5FB}
+\definecolor{nightpanel}{HTML}{D7E9F4}
+\definecolor{starlight}{HTML}{FFFDF8}
+\definecolor{nebulablue}{HTML}{6FAFD6}
+\definecolor{nebulateal}{HTML}{81C7CF}
+\definecolor{auroraglow}{HTML}{4E8EBC}
+\definecolor{deepviolet}{HTML}{406C9A}
+\definecolor{nebulaedge}{HTML}{F4FAFD}
+\definecolor{noteblue}{HTML}{356FA8}
+\definecolor{noteink}{HTML}{2A5076}
+\definecolor{titlewash}{HTML}{F1F8FD}
+\definecolor{talkaccent}{HTML}{356FA8}
+\definecolor{talkwash}{HTML}{EAF4FB}
+\definecolor{posteraccent}{HTML}{C87363}
+\definecolor{posterwash}{HTML}{FBEEE9}
+\definecolor{abstractaccent}{HTML}{3A8B7B}
+\definecolor{abstractwash}{HTML}{EAF7F3}
+\definecolor{posterabstractaccent}{HTML}{8F6AAE}
+\definecolor{posterabstractwash}{HTML}{F3ECF8}
+\definecolor{headerink}{HTML}{5A4A3D}
+\definecolor{headerline}{HTML}{CBB8A4}
 % Day palettes
-\definecolor{mondaybg}{HTML}{1A2F3A}
-\definecolor{mondayaccent}{HTML}{5AB4CC}
-\definecolor{mondayglow}{HTML}{A8DDE8}
-\definecolor{tuesdaybg}{HTML}{311A2B}
-\definecolor{tuesdayaccent}{HTML}{F28A64}
-\definecolor{tuesdayglow}{HTML}{F6C177}
-\definecolor{wednesdaybg}{HTML}{102E35}
-\definecolor{wednesdayaccent}{HTML}{63C7BE}
-\definecolor{wednesdayglow}{HTML}{C6F3EE}
-\definecolor{thursdaybg}{HTML}{1B2346}
-\definecolor{thursdayaccent}{HTML}{90A7FF}
-\definecolor{thursdayglow}{HTML}{F0D08F}
-\definecolor{fridaybg}{HTML}{2D1A1A}
-\definecolor{fridayaccent}{HTML}{E07070}
-\definecolor{fridayglow}{HTML}{F5C8A8}
+\definecolor{mondaybg}{HTML}{E8F4FB}
+\definecolor{mondayaccent}{HTML}{4C9EC5}
+\definecolor{mondayglow}{HTML}{8FD0E5}
+\definecolor{tuesdaybg}{HTML}{F8EEE8}
+\definecolor{tuesdayaccent}{HTML}{D98858}
+\definecolor{tuesdayglow}{HTML}{EBC78C}
+\definecolor{wednesdaybg}{HTML}{EAF7F3}
+\definecolor{wednesdayaccent}{HTML}{4FA99D}
+\definecolor{wednesdayglow}{HTML}{9ED9D0}
+\definecolor{thursdaybg}{HTML}{EEF1FB}
+\definecolor{thursdayaccent}{HTML}{6E8EDC}
+\definecolor{thursdayglow}{HTML}{B9C7F4}
+\definecolor{fridaybg}{HTML}{FAEEE8}
+\definecolor{fridayaccent}{HTML}{C87363}
+\definecolor{fridayglow}{HTML}{E7B59E}
 
 \hypersetup{
   colorlinks=true,
   linkcolor=smbhblue,
   urlcolor=smbhteal,
-  pdftitle={SMBH 2026 Conference Programme},
+  pdftitle={Supermassive Black Holes and Blue Notes},
   pdfauthor={SMBH 2026 Organizing Team}
 }
 
@@ -150,16 +196,15 @@ PREAMBLE = r"""% !TEX TS-program = lualatex
 \renewcommand{\arraystretch}{1.15}
 \arrayrulecolor{lightrule}
 \rowcolors{2}{softpanel!75!white}{white}
+\setcounter{tocdepth}{1}
 
-\IfFileExists{ragged2e.sty}{%
-  \newcommand{\TableRaggedRight}{\RaggedRight}%
-}{%
-  \newcommand{\TableRaggedRight}{\raggedright}%
-}
-\IfFileExists{needspace.sty}{%
-  \newcommand{\TopicNeedSpace}[1]{\Needspace{#1}}%
-}{%
-  \newcommand{\TopicNeedSpace}[1]{}%
+\newcommand{\TableRaggedRight}{\RaggedRight}
+\newcommand{\TopicNeedSpace}[1]{\Needspace{#1}}
+\newcommand{\currentchapteraccent}{talkaccent}
+\newcommand{\currentchapterwash}{talkwash}
+\newcommand{\setchapterpalette}[2]{%
+  \renewcommand{\currentchapteraccent}{#1}%
+  \renewcommand{\currentchapterwash}{#2}%
 }
 
 % ---- Section formatting ----------------------------------------------------
@@ -172,15 +217,82 @@ PREAMBLE = r"""% !TEX TS-program = lualatex
 \renewcommand\subsection{\@startsection{subsection}{2}{\z@}{-2.4ex \@plus -1ex \@minus -.2ex}{0.7ex \@plus .15ex}{\normalfont\large\sffamily\bfseries\color{smbhteal}}}
 
 \newcommand{\chaptertitlepanel}[1]{%
-  \noindent\fcolorbox{nebulablue}{nightpanel}{%
+  \noindent\fcolorbox{\currentchapteraccent}{\currentchapterwash}{%
     \begin{minipage}{0.95\textwidth}
       \vspace{0.25em}%
-      {\sffamily\bfseries\Huge\color{starlight} #1\par}
+      {\sffamily\bfseries\Huge\color{smbhdeep} #1\par}
       \vspace{0.35em}%
-      {\color{auroraglow}\rule{0.28\textwidth}{1.2pt}}%
+      {\color{\currentchapteraccent}\rule{0.28\textwidth}{1.2pt}}%
       \vspace{0.25em}%
     \end{minipage}%
   }%
+}
+
+\newcommand{\sectiondividerartleft}{%
+  \IfFileExists{music/musical-notes-colorful-clipart-lg.png}{%
+    \includegraphics[width=0.16\textwidth]{music/musical-notes-colorful-clipart-lg.png}%
+  }{%
+    \IfFileExists{music/colorful-music-notes-picture-2.png}{%
+      \includegraphics[width=0.16\textwidth]{music/colorful-music-notes-picture-2.png}%
+    }{}%
+  }%
+}
+
+\newcommand{\titlecornerart}{%
+  \IfFileExists{music/pngtree-colorful-music-notes-png-image_17160794.png}{%
+    \includegraphics[width=0.15\textwidth]{music/pngtree-colorful-music-notes-png-image_17160794.png}%
+  }{%
+    \sectiondividerartleft
+  }%
+}
+
+\newcommand{\sectiondividerartright}{%
+  \IfFileExists{music/9448086.png}{%
+    \includegraphics[width=0.11\textwidth]{music/9448086.png}%
+  }{%
+    \IfFileExists{music/images.png}{%
+      \includegraphics[width=0.11\textwidth]{music/images.png}%
+    }{%
+      \IfFileExists{music/colorful-music-notes-picture-2.png}{%
+        \includegraphics[width=0.15\textwidth]{music/colorful-music-notes-picture-2.png}%
+      }{}%
+    }%
+  }%
+}
+
+\newcommand{\sectiondividerartbottom}{%
+  \IfFileExists{music/colorful-music-notes-picture-2.png}{%
+    \includegraphics[width=0.17\textwidth]{music/colorful-music-notes-picture-2.png}%
+  }{%
+    \IfFileExists{music/images.png}{%
+      \includegraphics[width=0.15\textwidth]{music/images.png}%
+    }{}%
+  }%
+}
+
+\newcommand{\sectiondividerpage}[4]{%
+  \clearpage
+  \thispagestyle{empty}%
+  \vspace*{0.08\textheight}%
+  \noindent\hfill\sectiondividerartright\par
+  \vspace{0.35em}%
+  \begin{center}
+    \fcolorbox{#2}{#3}{%
+      \begin{minipage}{0.82\textwidth}
+        \centering
+        \vspace{1.1em}%
+        {\sffamily\bfseries\Huge\color{#2} #1\par}
+        \vspace{0.5em}%
+        {\color{#2}\rule{0.42\textwidth}{1.25pt}\par}
+        \vspace{0.7em}%
+        {\sffamily\large\color{smbhdeep} #4\par}
+        \vspace{1.05em}%
+      \end{minipage}%
+    }%
+  \end{center}
+  \vspace{0.35em}%
+  \noindent\sectiondividerartbottom\par
+  \clearpage
 }
 
 \def\@makechapterhead#1{%
@@ -203,59 +315,9 @@ PREAMBLE = r"""% !TEX TS-program = lualatex
   }}
 \makeatother
 
-% ---- Star / nebula background decorations --------------------------------
-% Upper-right corner: overlapping translucent nebula circles + small stars
-\newcommand{\smbhastrocorner}{%
-  \begingroup
-  \setlength{\unitlength}{1pt}%
-  \begin{picture}(0,0)
-    \put(476,-16){\color{nebulaedge!55}\circle*{108}}
-    \put(532,-30){\color{auroraglow!38}\circle*{172}}
-    \put(596,-104){\color{nebulateal!28}\circle*{240}}
-    \put(556,-158){\color{nebulablue!20}\circle*{300}}
-    \put(440,-22){\color{starlight!88}\circle*{2.1}}
-    \put(468,-86){\color{starlight!72}\circle*{1.4}}
-    \put(504,-44){\color{smbhgold!90}\circle*{2.3}}
-    \put(530,-118){\color{auroraglow!84}\circle*{1.8}}
-    \put(558,-62){\color{starlight!78}\circle*{2.0}}
-    \put(588,-136){\color{smbhgold!74}\circle*{1.3}}
-    \put(608,-50){\color{starlight!74}\circle*{1.6}}
-    \put(630,-110){\color{auroraglow!68}\circle*{1.2}}
-    \put(490,-152){\color{starlight!62}\circle*{1.5}}
-    \put(516,-178){\color{smbhgold!66}\circle*{1.1}}
-  \end{picture}%
-  \endgroup
-}
-% Lower-left corner: matching nebula glow
-\newcommand{\smbhastrolowerleft}{%
-  \begingroup
-  \setlength{\unitlength}{1pt}%
-  \begin{picture}(0,0)
-    \put(8,6){\color{nebulablue!20}\circle*{260}}
-    \put(50,26){\color{nebulateal!26}\circle*{184}}
-    \put(18,64){\color{auroraglow!34}\circle*{124}}
-    \put(84,14){\color{nebulaedge!32}\circle*{94}}
-    \put(24,20){\color{starlight!84}\circle*{1.9}}
-    \put(46,72){\color{smbhgold!80}\circle*{1.6}}
-    \put(70,36){\color{starlight!72}\circle*{1.4}}
-    \put(94,90){\color{auroraglow!76}\circle*{1.8}}
-    \put(116,26){\color{starlight!76}\circle*{1.5}}
-    \put(138,64){\color{smbhgold!84}\circle*{2.0}}
-    \put(150,12){\color{starlight!68}\circle*{1.2}}
-    \put(62,108){\color{auroraglow!60}\circle*{1.3}}
-  \end{picture}%
-  \endgroup
-}
-% Enable corner decorations on interior pages (call once after \begin{document})
-\newcommand{\enablesmbhastrobackground}{%
-  \AddToShipoutPictureBG{%
-    \AtPageUpperLeft{\smbhastrocorner}%
-    \AtPageLowerLeft{\smbhastrolowerleft}%
-  }%
-}
-% Title-page full starfield
+% ---- Page decorations ------------------------------------------------------
 \newcommand{\smbhstarfield}{%
-  \begingroup
+  {
   \setlength{\unitlength}{1pt}%
   \begin{picture}(0,0)
     \put(20,-22){\color{starlight}\circle*{2.9}}
@@ -275,39 +337,13 @@ PREAMBLE = r"""% !TEX TS-program = lualatex
     \put(160,-320){\color{auroraglow!50}\circle*{14}}
     \put(510,-290){\color{nebulablue!60}\circle*{10}}
     \put(340,-480){\color{nebulateal!50}\circle*{16}}
+    \put(430,-58){\makebox(0,0)[lt]{\titlecornerart}}
+    \put(44,-650){\makebox(0,0)[lb]{\sectiondividerartleft}}
   \end{picture}%
-  \endgroup
+  }
 }
-
-% ---- Star / nebula decorations --------------------------------------------
-% Full starfield for dark title page
-\newcommand{\smbhstarfield}{%
-  \begingroup
-  \setlength{\unitlength}{1pt}%
-  \begin{picture}(0,0)
-    \put(20,-22){\color{starlight}\circle*{2.9}}
-    \put(74,-56){\color{smbhgold}\circle*{2.2}}
-    \put(136,-34){\color{starlight}\circle*{2.5}}
-    \put(212,-70){\color{nebulateal}\circle*{3.3}}
-    \put(308,-24){\color{starlight}\circle*{2.9}}
-    \put(398,-62){\color{smbhgold}\circle*{2.2}}
-    \put(464,-32){\color{starlight}\circle*{2.5}}
-    \put(38,-144){\color{nebulablue}\circle*{36}}
-    \put(454,-170){\color{nebulateal}\circle*{28}}
-    \put(46,-508){\color{nebulateal}\circle*{20}}
-    \put(470,-538){\color{nebulablue}\circle*{32}}
-    \put(84,-674){\color{starlight}\circle*{2.9}}
-    \put(240,-706){\color{smbhgold}\circle*{2.9}}
-    \put(430,-690){\color{starlight}\circle*{2.5}}
-    \put(160,-320){\color{auroraglow!50}\circle*{14}}
-    \put(510,-290){\color{nebulablue!60}\circle*{10}}
-    \put(340,-480){\color{nebulateal!50}\circle*{16}}
-  \end{picture}%
-  \endgroup
-}
-% Upper-right corner: translucent nebula blobs + small stars
 \newcommand{\smbhastrocorner}{%
-  \begingroup
+  {
   \setlength{\unitlength}{1pt}%
   \begin{picture}(0,0)
     \put(476,-16){\color{nebulaedge!55}\circle*{108}}
@@ -328,50 +364,26 @@ PREAMBLE = r"""% !TEX TS-program = lualatex
     \put(490,-152){\color{starlight!62}\circle*{1.5}}
     \put(516,-178){\color{smbhgold!66}\circle*{1.1}}
   \end{picture}%
-  \endgroup
+  }
 }
-% Lower-left corner: matching nebula glow + small stars
-\newcommand{\smbhastrolowerleft}{%
-  \begingroup
-  \setlength{\unitlength}{1pt}%
-  \begin{picture}(0,0)
-    \put(8,6){\color{nebulablue!20}\circle*{260}}
-    \put(50,26){\color{nebulateal!26}\circle*{184}}
-    \put(18,64){\color{auroraglow!34}\circle*{124}}
-    \put(84,14){\color{nebulaedge!32}\circle*{94}}
-    \put(24,20){\color{starlight!84}\circle*{1.9}}
-    \put(38,52){\color{starlight!62}\circle*{1.1}}
-    \put(46,72){\color{smbhgold!80}\circle*{1.6}}
-    \put(70,36){\color{starlight!72}\circle*{1.4}}
-    \put(86,58){\color{auroraglow!66}\circle*{1.0}}
-    \put(94,90){\color{auroraglow!76}\circle*{1.8}}
-    \put(116,26){\color{starlight!76}\circle*{1.5}}
-    \put(130,48){\color{smbhgold!70}\circle*{1.2}}
-    \put(138,64){\color{smbhgold!84}\circle*{2.0}}
-    \put(150,12){\color{starlight!68}\circle*{1.2}}
-    \put(62,108){\color{auroraglow!60}\circle*{1.3}}
-  \end{picture}%
-  \endgroup
-}
-% Enable corner decorations on all interior pages
 \newcommand{\enablesmbhastrobackground}{%
   \AddToShipoutPictureBG{%
     \AtPageUpperLeft{\smbhastrocorner}%
-    \AtPageLowerLeft{\smbhastrolowerleft}%
   }%
 }
 
 % ---- Headers/footers -------------------------------------------------------
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\sffamily\small\color{smbhblue}\bfseries SMBH 2026}
+\fancyhead[L]{\sffamily\small\color{headerink}\bfseries SMBH and Blue Notes}
 \fancyhead[R]{\sffamily\small\color{smbhdeep}\nouppercase{\leftmark}}
-\fancyfoot[L]{\sffamily\small\color{smbhteal} Conference Programme \textcolor{auroraglow}{.}}
+\fancyfoot[L]{\sffamily\small\color{smbhteal} \href{https://sites.google.com/view/smbh2026/home}{sites.google.com/view/smbh2026/home}}
 \fancyfoot[C]{\IfFileExists{assets/Symbole_carré-UdeM.png}{\includegraphics[height=16pt]{assets/Symbole_carré-UdeM.png}}{}}
 \fancyfoot[R]{\sffamily\small\color{smbhdeep}\thepage}
-\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrulewidth}{0.5pt}
 \renewcommand{\footrulewidth}{0pt}
 \setlength{\headheight}{25pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{headerline}\leaders\hrule height \headrulewidth\hfill}}
 
 % ---- Day banner command ----------------------------------------------------
 \newcommand{\daypalettebanner}[4]{%
@@ -379,7 +391,7 @@ PREAMBLE = r"""% !TEX TS-program = lualatex
   \noindent\fcolorbox{#3}{#2}{%
     \begin{minipage}{0.96\textwidth}
       \vspace{0.2em}%
-      {\sffamily\bfseries\Large\color{starlight} #1\par}
+      {\sffamily\bfseries\Large\color{smbhdeep} #1\par}
       \vspace{0.15em}%
       {\sffamily\itshape\small\color{#3} #4\par}
       \vspace{0.35em}%
@@ -391,9 +403,15 @@ PREAMBLE = r"""% !TEX TS-program = lualatex
 }
 
 % ---- Invited talk badge ----------------------------------------------------
-\newcommand{\invitedbadge}{%
-  \fcolorbox{smbhgold}{smbhgold!20}{\sffamily\footnotesize\bfseries\color{smbhgold!70!black} Invited}%
+\newcommand{\typepill}[3]{%
+  \fcolorbox{#2}{#3}{\sffamily\scriptsize\bfseries\color{smbhdeep} #1}%
 }
+\newcommand{\invitedbadge}{%
+  \typepill{Invited}{smbhgold}{smbhgold!20}%
+}
+\newcommand{\flashbadge}{\typepill{Flash}{auroraglow}{talkwash}}
+\newcommand{\talkbadge}{\typepill{Talk}{talkaccent}{talkwash}}
+\newcommand{\publicbadge}{\typepill{Public}{posteraccent}{posterwash}}
 """
 
 
@@ -403,23 +421,29 @@ DOCUMENT_BODY = r"""
 \hypersetup{pageanchor=false}
 \begin{titlepage}
   \thispagestyle{empty}
-  \pagecolor{nightbg}
-  \color{starlight}
+  \pagecolor{titlewash}
+  \color{smbhdeep}
   \smbhstarfield
-  \vspace*{0.28\textheight}
+  \vspace*{0.23\textheight}
   \begin{center}
-    {\sffamily\bfseries\Huge\color{starlight} SMBH 2026\par}
-    \vspace{0.5em}
-    {\sffamily\bfseries\Large\color{auroraglow} Supermassive Black Holes:\par}
+    {\sffamily\bfseries\large\color{auroraglow} SMBH 2026\par}
+    \vspace{0.7em}
+    {\sffamily\bfseries\Huge\color{smbhdeep} Supermassive Black Holes\par}
     \vspace{0.2em}
-    {\sffamily\itshape\large\color{smbhgold} From Seeds to Giants\par}
-    \vspace{1.5em}
-    {\color{auroraglow}\rule{0.4\textwidth}{1.6pt}\par}
-    \vspace{1.5em}
-    {\large\color{starlight} June 29 -- July 3, 2026\par}
+    {\sffamily\bfseries\Huge\color{noteblue} and Blue Notes\par}
+    \vspace{0.45em}
+    {\sffamily\itshape\large\color{smbhteal} Conference Programme\par}
+    \vspace{1.2em}
+    {\color{auroraglow}\rule{0.48\textwidth}{1.6pt}\par}
+    \vspace{1.2em}
+    {\large\color{smbhdeep} Campus MIL, Universit\'e de Montr\'eal\par}
     \vspace{0.4em}
-    {\normalsize\itshape\color{smbhgold!80} Montr\'eal, Qu\'ebec\par}
-    \vspace{1.8em}
+    {\normalsize\itshape\color{noteink} Montr\'eal, Qu\'ebec, Canada\par}
+    \vspace{0.45em}
+    {\large\color{noteblue} June 29 -- July 3, 2026\par}
+    \vspace{0.8em}
+    {\normalsize\color{smbhteal}\href{https://sites.google.com/view/smbh2026/home}{sites.google.com/view/smbh2026/home}\par}
+    \vspace{1.3em}
     \IfFileExists{assets/Symbole_carré-UdeM.png}{%
       \includegraphics[width=3.0cm]{assets/Symbole_carré-UdeM.png}%
     }{}
@@ -436,74 +460,164 @@ DOCUMENT_BODY = r"""
 
 \pagenumbering{arabic}
 
-\chapter*{Conference Schedule}
-\addcontentsline{toc}{chapter}{Conference Schedule}
-\markboth{Conference Schedule}{}
+\setchapterpalette{talkaccent}{talkwash}
+\sectiondividerpage{Talk Schedule}{talkaccent}{talkwash}{Scheduled oral and flash presentations}
+\chapter*{Talk Schedule}
+\addcontentsline{toc}{chapter}{Talk Schedule}
+\markboth{Talk Schedule}{}
 
-\input{sections/generated_smbh_schedule}
+\input{sections/generated_smbh_talk_schedule}
 
 \clearpage
-\chapter*{Abstracts}
-\addcontentsline{toc}{chapter}{Abstracts}
-\markboth{Abstracts}{}
+\setchapterpalette{posteraccent}{posterwash}
+\sectiondividerpage{Poster Session}{posteraccent}{posterwash}{Poster presentations and contributed poster titles}
+\chapter*{Poster Session}
+\addcontentsline{toc}{chapter}{Poster Session}
+\markboth{Poster Session}{}
 
-\input{sections/generated_smbh_abstracts}
+\input{sections/generated_smbh_poster_session}
+
+\clearpage
+\setchapterpalette{abstractaccent}{abstractwash}
+\sectiondividerpage{Talk Abstracts}{abstractaccent}{abstractwash}{Abstracts for scheduled and schedule-TBD talks}
+\chapter*{Talk Abstracts}
+\addcontentsline{toc}{chapter}{Talk Abstracts}
+\markboth{Talk Abstracts}{}
+
+\input{sections/generated_smbh_talk_abstracts}
+
+\clearpage
+\setchapterpalette{posterabstractaccent}{posterabstractwash}
+\sectiondividerpage{Poster Abstracts}{posterabstractaccent}{posterabstractwash}{Poster abstracts grouped by theme}
+\chapter*{Poster Abstracts}
+\addcontentsline{toc}{chapter}{Poster Abstracts}
+\markboth{Poster Abstracts}{}
+
+\input{sections/generated_smbh_poster_abstracts}
 
 \end{document}
 """
 
 
 # ---------------------------------------------------------------------------
-# Schedule renderer
+# Renderers
 # ---------------------------------------------------------------------------
 
-def render_schedule(entries: list[Entry]) -> str:
-    """Return LaTeX for the schedule section (all days)."""
+def render_talk_schedule(entries: list[Entry], unscheduled: list[Entry]) -> str:
     grouped = _group_by_day_theme(entries)
-    day_order = _day_order(entries)
     parts: list[str] = []
 
-    for day_label in day_order:
-        day_name = day_name_from_label(day_label)
-        bg, accent, glow, date_str = DAY_PALETTES.get(
-            day_name, ("nightpanel", "auroraglow", "smbhgold", day_label)
-        )
+    for day_label in _day_order(entries):
+        parts.append(_day_banner(day_label, add_to_toc=True, anchor_prefix="sched-day"))
+        for theme_key in _theme_order(grouped[day_label]):
+            parts.append(_theme_heading(theme_key, "talkaccent"))
+            parts.append(_talk_table(grouped[day_label][theme_key]))
+
+    if unscheduled:
         parts.append(
-            f"\\hypertarget{{sched-day-{day_name.lower()}}}{{}}\n"
-            f"\\daypalettebanner{{{latex_escape(day_name)}}}{{{bg}}}{{{accent}}}{{{date_str}}}\n"
+            "\\daypalettebanner{Schedule TBD}{softpanel}{abstractaccent}{Awaiting final placement in the programme}\n"
         )
+        grouped_tbd = _group_by_theme(unscheduled)
+        for theme_key in _theme_order(grouped_tbd):
+            parts.append(_theme_heading(theme_key, "abstractaccent"))
+            parts.append(_talk_table(grouped_tbd[theme_key]))
 
-        theme_entries = grouped[day_label]
-        theme_order = _theme_order(theme_entries)
-        for theme_key in theme_order:
-            label = theme_label(theme_key)
-            section_id = f"sched-{day_name.lower()}-{theme_key}"
-            parts.append(
-                f"\\hypertarget{{{section_id}}}{{}}\n"
-                f"\\section*{{Theme {theme_key}: {latex_escape(label)}}}\n"
-                f"\\addcontentsline{{toc}}{{section}}{{Theme {theme_key}: {latex_escape(label)}}}\n"
-            )
-            parts.append(_schedule_table(theme_entries[theme_key]))
-        parts.append("")
-
-    return "\n".join(parts)
+    return "\n".join(parts) if parts else "No talks were found."
 
 
-def _schedule_table(entries: list[Entry]) -> str:
+def render_poster_session(entries: list[Entry]) -> str:
+    parts: list[str] = []
+    grouped_by_day = _group_by_day_theme(entries)
+
+    for day_label in _poster_day_order(entries):
+        parts.append(_poster_day_banner(day_label))
+        grouped = grouped_by_day[day_label]
+        for theme_key in _theme_order(grouped):
+            parts.append(_theme_heading(theme_key, "posteraccent"))
+            parts.append(_poster_table(grouped[theme_key]))
+    return "\n".join(parts) if parts else "No posters were found."
+
+
+def render_talk_abstracts(entries: list[Entry], unscheduled: list[Entry]) -> str:
+    grouped = _group_by_day_theme(entries)
+    parts: list[str] = []
+
+    for day_label in _day_order(entries):
+        parts.append(_day_banner(day_label, add_to_toc=False, anchor_prefix="abs-day"))
+        for theme_key in _theme_order(grouped[day_label]):
+            parts.append(_theme_heading(theme_key, "abstractaccent"))
+            parts.extend(_abstract_entry(e) for e in grouped[day_label][theme_key])
+
+    if unscheduled:
+        parts.append(
+            "\\daypalettebanner{Schedule TBD}{softpanel}{abstractaccent}{Talk abstracts without a final day assignment}\n"
+        )
+        grouped_tbd = _group_by_theme(unscheduled)
+        for theme_key in _theme_order(grouped_tbd):
+            parts.append(_theme_heading(theme_key, "abstractaccent"))
+            parts.extend(_abstract_entry(e) for e in grouped_tbd[theme_key])
+
+    return "\n".join(parts) if parts else "No talk abstracts were found."
+
+
+def render_poster_abstracts(entries: list[Entry]) -> str:
+    grouped = _group_by_theme(entries)
+    parts: list[str] = []
+    for theme_key in _theme_order(grouped):
+        parts.append(_theme_heading(theme_key, "posterabstractaccent"))
+        parts.extend(_abstract_entry(e) for e in grouped[theme_key])
+    return "\n".join(parts) if parts else "No poster abstracts were found."
+
+
+def _day_banner(day_label: str, add_to_toc: bool, anchor_prefix: str) -> str:
+    day_name = day_name_from_label(day_label)
+    bg, accent, glow, date_str = DAY_PALETTES.get(
+        day_name, ("softpanel", "auroraglow", "smbhgold", day_label)
+    )
+    toc_line = (
+        f"\\addcontentsline{{toc}}{{section}}{{{programme_tex(day_label)}}}\n"
+        if add_to_toc
+        else ""
+    )
+    return (
+        f"\\hypertarget{{{anchor_prefix}-{day_name.lower()}}}{{}}\n"
+        f"{toc_line}"
+        f"\\daypalettebanner{{{programme_tex(day_name)}}}{{{bg}}}{{{accent}}}{{{programme_tex(date_str)}}}\n"
+    )
+
+
+def _poster_day_banner(day_label: str) -> str:
+    if day_label == "Unscheduled":
+        return (
+            "\\hypertarget{poster-day-schedule-tbd}{}\n"
+            "\\addcontentsline{toc}{section}{Poster Session: Schedule TBD}\n"
+            "\\daypalettebanner{Poster Session}{posterwash}{posteraccent}{Schedule TBD in workbook}\n"
+        )
+    return _day_banner(day_label, add_to_toc=True, anchor_prefix="poster-day")
+
+
+def _theme_heading(theme_key: str, accent_color: str) -> str:
+    label = theme_label(theme_key)
+    return (
+        f"\\subsection*{{Theme {programme_tex(theme_key)}: {programme_tex(label)}}}\n"
+        f"{{\\color{{{accent_color}}}\\rule{{0.2\\textwidth}}{{1.1pt}}}}\\par\\vspace{{0.45em}}\n"
+    )
+
+
+def _talk_table(entries: list[Entry]) -> str:
     rows: list[str] = []
     for e in entries:
-        type_cell = r"\invitedbadge{}" if e.presentation_type == "Invited Speaker" else ""
-        speaker = latex_escape(e.full_name)
-        title = (
-            f"\\hyperlink{{abs-{e.row_number}}}{{{latex_escape(e.title)}}}"
+        speaker = programme_tex(e.full_name)
+        title = f"\\hyperlink{{abs-{e.row_number}}}{{{programme_tex(e.title)}}}"
+        rows.append(
+            f"\\hypertarget{{sched-{e.row_number}}}{{}}{speaker} & {_type_badge(e)} & {title} \\\\"
         )
-        rows.append(f"\\hypertarget{{sched-{e.row_number}}}{{}}{speaker} & {type_cell} & {title} \\\\")
 
     table_rows = "\n".join(rows)
     col_spec = (
-        r"@{}>{\TableRaggedRight\arraybackslash\hspace{0pt}}p{0.22\textwidth}"
-        r" >{\centering\arraybackslash}p{0.09\textwidth}"
-        r" >{\TableRaggedRight\arraybackslash\hspace{0pt}}p{0.65\textwidth}@{}"
+        r"@{}>{\TableRaggedRight\arraybackslash\hspace{0pt}}p{0.24\textwidth}"
+        r" >{\centering\arraybackslash}p{0.12\textwidth}"
+        r" >{\TableRaggedRight\arraybackslash\hspace{0pt}}p{0.58\textwidth}@{}"
     )
     return (
         "{\n"
@@ -527,56 +641,55 @@ def _schedule_table(entries: list[Entry]) -> str:
     )
 
 
-# ---------------------------------------------------------------------------
-# Abstracts renderer
-# ---------------------------------------------------------------------------
+def _poster_table(entries: list[Entry]) -> str:
+    rows: list[str] = []
+    for e in entries:
+        presenter = programme_tex(e.full_name)
+        title = f"\\hyperlink{{abs-{e.row_number}}}{{{programme_tex(e.title)}}}"
+        rows.append(f"\\hypertarget{{sched-{e.row_number}}}{{}}{presenter} & {title} \\\\")
 
-def render_abstracts(entries: list[Entry]) -> str:
-    """Return LaTeX for the abstracts section (all days)."""
-    grouped = _group_by_day_theme(entries)
-    day_order = _day_order(entries)
-    parts: list[str] = []
-
-    for day_label in day_order:
-        day_name = day_name_from_label(day_label)
-        bg, accent, glow, date_str = DAY_PALETTES.get(
-            day_name, ("nightpanel", "auroraglow", "smbhgold", day_label)
-        )
-        parts.append(
-            f"\\hypertarget{{abs-day-{day_name.lower()}}}{{}}\n"
-            f"\\daypalettebanner{{{latex_escape(day_name)}}}{{{bg}}}{{{accent}}}{{{date_str}}}\n"
-        )
-
-        theme_entries = grouped[day_label]
-        theme_order = _theme_order(theme_entries)
-        for theme_key in theme_order:
-            label = theme_label(theme_key)
-            parts.append(
-                f"\\section*{{Theme {theme_key}: {latex_escape(label)}}}\n"
-                f"\\addcontentsline{{toc}}{{section}}{{Theme {theme_key}: {latex_escape(label)}}}\n"
-            )
-            for e in theme_entries[theme_key]:
-                parts.append(_abstract_entry(e))
-        parts.append("")
-
-    return "\n".join(parts)
+    table_rows = "\n".join(rows)
+    col_spec = (
+        r"@{}>{\TableRaggedRight\arraybackslash\hspace{0pt}}p{0.26\textwidth}"
+        r" >{\TableRaggedRight\arraybackslash\hspace{0pt}}p{0.68\textwidth}@{}"
+    )
+    return (
+        "{\n"
+        "\\small\n"
+        "\\hbadness=10000\n"
+        "\\sloppy\n"
+        "\\setlength{\\emergencystretch}{1em}\n"
+        f"\\begin{{longtable}}{{{col_spec}}}\n"
+        "\\toprule\n"
+        "Presenter & Poster Title \\\\\n"
+        "\\midrule\n"
+        "\\endfirsthead\n"
+        "\\toprule\n"
+        "Presenter & Poster Title \\\\\n"
+        "\\midrule\n"
+        "\\endhead\n"
+        f"{table_rows}\n"
+        "\\bottomrule\n"
+        "\\end{longtable}\n"
+        "}"
+    )
 
 
 def _abstract_entry(e: Entry) -> str:
-    type_tag = r"\invitedbadge{}" if e.presentation_type == "Invited Speaker" else ""
-    affil = latex_escape(e.affiliation) if e.affiliation else ""
-    career = latex_escape(e.career_stage) if e.career_stage else ""
+    type_tag = _type_badge(e)
+    affil = programme_tex(e.affiliation) if e.affiliation else ""
+    career = programme_tex(e.career_stage) if e.career_stage else ""
     meta_parts = [p for p in [affil, career] if p]
     meta_line = " \\textperiodcentered{} ".join(meta_parts) if meta_parts else ""
+    meta_block = f"\\textbf{{Affiliation:}} {meta_line}\\\\" if meta_line else ""
 
     return textwrap.dedent(f"""
 \\TopicNeedSpace{{10\\baselineskip}}
 \\hypertarget{{abs-{e.row_number}}}{{}}
-\\subsubsection*{{{latex_escape(e.title)}}}
-\\addcontentsline{{toc}}{{subsubsection}}{{{latex_escape(e.title)}}}
-\\textbf{{Speaker:}} {latex_escape(e.full_name)} {type_tag}\\\\
-{'\\textbf{Affiliation:} ' + meta_line + '\\\\' if meta_line else ''}
-{latex_paragraphs(e.abstract)}
+\\subsubsection*{{{programme_tex(e.title)}}}
+\\textbf{{Speaker:}} {programme_tex(e.full_name)} {type_tag}\\\\
+{meta_block}
+{programme_paragraphs(e.abstract)}
 """).strip() + "\n"
 
 
@@ -584,30 +697,61 @@ def _abstract_entry(e: Entry) -> str:
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _type_badge(entry: Entry) -> str:
+    if entry.presentation_type == "Invited Speaker":
+        return r"\invitedbadge{}"
+    if entry.presentation_type == "Invited Speaker (Public Talk)":
+        return r"\publicbadge{}"
+    if entry.presentation_type == "Flash Talk":
+        return r"\flashbadge{}"
+    if entry.presentation_type == "Contributed Talk":
+        return r"\talkbadge{}"
+    if entry.presentation_type == "Poster":
+        return r"\typepill{Poster}{posteraccent}{posterwash}"
+    label = programme_tex(entry.presentation_type or "Talk")
+    return rf"\typepill{{{label}}}{{talkaccent}}{{talkwash}}"
+
+
 def _group_by_day_theme(entries: list[Entry]) -> dict[str, dict[str, list[Entry]]]:
     result: dict[str, dict[str, list[Entry]]] = defaultdict(lambda: defaultdict(list))
-    for e in entries:
-        key = primary_theme(e.theme)
-        result[e.day_label][key].append(e)
+    for entry in entries:
+        result[entry.day_label][primary_theme(entry.theme)].append(entry)
+    return result
+
+
+def _group_by_theme(entries: list[Entry]) -> dict[str, list[Entry]]:
+    result: dict[str, list[Entry]] = defaultdict(list)
+    for entry in entries:
+        result[primary_theme(entry.theme)].append(entry)
     return result
 
 
 def _day_order(entries: list[Entry]) -> list[str]:
     seen: set[str] = set()
     order: list[str] = []
-    for e in entries:
-        if e.day_label not in seen:
-            seen.add(e.day_label)
-            order.append(e.day_label)
+    for entry in entries:
+        if entry.day_label not in seen:
+            seen.add(entry.day_label)
+            order.append(entry.day_label)
     return order
 
 
-def _theme_order(theme_dict: dict[str, list[Entry]]) -> list[str]:
-    def sort_key(k: str) -> tuple[int, str]:
+def _poster_day_order(entries: list[Entry]) -> list[str]:
+    real_days = [day for day in _day_order(entries) if day != "Unscheduled"]
+    if real_days:
+        if any(entry.day_label == "Unscheduled" for entry in entries):
+            real_days.append("Unscheduled")
+        return real_days
+    return ["Unscheduled"] if entries else []
+
+
+def _theme_order(theme_dict: dict[str, list[Entry]] | dict[str, dict[str, list[Entry]]]) -> list[str]:
+    def sort_key(theme_key: str) -> tuple[int, str]:
         try:
-            return (int(k), "")
+            return (int(theme_key), "")
         except ValueError:
-            return (999, k)
+            return (999, theme_key)
+
     return sorted(theme_dict.keys(), key=sort_key)
 
 
@@ -617,7 +761,7 @@ def _theme_order(theme_dict: dict[str, list[Entry]]) -> list[str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate CASCA-style LaTeX programme for SMBH 2026."
+        description="Generate the styled LaTeX programme for SMBH 2026."
     )
     parser.add_argument(
         "input",
@@ -632,7 +776,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--title",
-        default="SMBH 2026",
+        default="Supermassive Black Holes and Blue Notes",
         help="Conference title for the document.",
     )
     return parser.parse_args()
@@ -651,31 +795,44 @@ def main() -> int:
         print(f"Error reading workbook: {exc}", file=sys.stderr)
         return 1
 
-    # Separate scheduled from unscheduled
-    scheduled = [e for e in entries if e.day_label != "Unscheduled"]
-    unscheduled = [e for e in entries if e.day_label == "Unscheduled"]
-    if unscheduled:
-        print(f"Note: {len(unscheduled)} unscheduled entries will be omitted from the programme.")
+    talk_entries = [entry for entry in entries if not is_poster_entry(entry)]
+    poster_entries = [entry for entry in entries if is_poster_entry(entry)]
+    scheduled_talks = [entry for entry in talk_entries if entry.day_label != "Unscheduled"]
+    unscheduled_talks = [entry for entry in talk_entries if entry.day_label == "Unscheduled"]
 
     # Write section files
     sections_dir = Path("sections")
     sections_dir.mkdir(exist_ok=True)
 
-    schedule_tex = render_schedule(scheduled)
-    abstracts_tex = render_abstracts(scheduled)
-
-    schedule_path = sections_dir / "generated_smbh_schedule.tex"
-    abstracts_path = sections_dir / "generated_smbh_abstracts.tex"
-    schedule_path.write_text(schedule_tex, encoding="utf-8")
-    abstracts_path.write_text(abstracts_tex, encoding="utf-8")
+    rendered_sections = {
+        sections_dir / "generated_smbh_talk_schedule.tex": render_talk_schedule(
+            scheduled_talks, unscheduled_talks
+        ),
+        sections_dir / "generated_smbh_poster_session.tex": render_poster_session(
+            poster_entries
+        ),
+        sections_dir / "generated_smbh_talk_abstracts.tex": render_talk_abstracts(
+            scheduled_talks, unscheduled_talks
+        ),
+        sections_dir / "generated_smbh_poster_abstracts.tex": render_poster_abstracts(
+            poster_entries
+        ),
+    }
+    for path, content in rendered_sections.items():
+        path.write_text(content, encoding="utf-8")
 
     # Write main document
     main_path = Path("smbh_main.tex")
     main_path.write_text(PREAMBLE + DOCUMENT_BODY, encoding="utf-8")
 
-    print(f"Wrote {len(scheduled)} entries.")
-    print(f"  {schedule_path}")
-    print(f"  {abstracts_path}")
+    print(
+        "Included "
+        f"{len(scheduled_talks)} scheduled talks, "
+        f"{len(unscheduled_talks)} talks with TBD placement, "
+        f"and {len(poster_entries)} posters."
+    )
+    for path in rendered_sections:
+        print(f"  {path}")
     print(f"  {main_path}")
     print("Compile with:  lualatex smbh_main.tex  (run twice for TOC)")
     return 0

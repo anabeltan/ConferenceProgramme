@@ -37,6 +37,24 @@ REQUIRED_HEADERS = [
     "Theme",
 ]
 
+HEADER_ALIASES = {
+    "name": "Name",
+    "first name": "Name",
+    "given name": "Name",
+    "surname": "Surname",
+    "last name": "Surname",
+    "family name": "Surname",
+    "email": "Email",
+    "email address": "Email",
+    "career stage": "Career Stage",
+    "affiliation": "Affiliation",
+    "presentation type": "Presentation Type",
+    "title": "Title",
+    "abstract": "Abstract",
+    "day": "Day",
+    "theme": "Theme",
+}
+
 
 @dataclass
 class Entry:
@@ -94,6 +112,11 @@ def excel_column_to_index(cell_ref: str) -> int:
 
 def normalize_header(value: str) -> str:
     return re.sub(r"\s+", " ", value or "").strip()
+
+
+def canonical_header(value: str) -> str:
+    normalized = normalize_header(value).strip(" :?").lower()
+    return HEADER_ALIASES.get(normalized, "")
 
 
 def load_workbook_parts(xlsx_path: Path) -> tuple[list[str], dict[str, str], zipfile.ZipFile]:
@@ -160,6 +183,8 @@ def sheet_rows(
 
 def excel_serial_to_label(raw: str) -> tuple[tuple[int, str], str]:
     text = normalize_header(raw)
+    if not text or text.lower() in {"n/a", "na", "none", "tbd", "unscheduled"}:
+        return (10**9, "Unscheduled"), "Unscheduled"
     try:
         serial = int(float(text))
     except ValueError:
@@ -199,16 +224,81 @@ def latex_paragraphs(value: str) -> str:
     return "\n\n".join(parts) if parts else "Not provided."
 
 
+def detect_header_row(
+    rows: list[tuple[int, dict[int, str]]],
+) -> tuple[int, int, dict[str, int]]:
+    best_index = -1
+    best_row_number = -1
+    best_header_map: dict[str, int] = {}
+    best_score = -1
+
+    for row_index, (row_number, row_cells) in enumerate(rows[:10]):
+        header_map: dict[str, int] = {}
+        for col_index, value in row_cells.items():
+            canonical = canonical_header(value)
+            if canonical and canonical not in header_map:
+                header_map[canonical] = col_index
+
+        score = sum(1 for header in REQUIRED_HEADERS if header in header_map)
+        if score > best_score:
+            best_index = row_index
+            best_row_number = row_number
+            best_header_map = header_map
+            best_score = score
+
+    if best_score <= 0:
+        raise ValueError("Could not locate a recognizable header row in the workbook.")
+
+    missing = [header for header in REQUIRED_HEADERS if header not in best_header_map]
+    if missing:
+        available = ", ".join(sorted(best_header_map))
+        raise ValueError(
+            "Missing required columns: "
+            + ", ".join(missing)
+            + f" (best matching header row was Excel row {best_row_number}; found: {available})"
+        )
+
+    return best_index, best_row_number, best_header_map
+
+
+def score_sheet_for_headers(
+    archive: zipfile.ZipFile,
+    sheet_target: str,
+    shared_strings: list[str],
+) -> int:
+    rows = list(sheet_rows(archive, sheet_target, shared_strings))
+    if not rows:
+        return -1
+
+    best_score = 0
+    for _, row_cells in rows[:10]:
+        seen = {canonical_header(value) for value in row_cells.values()}
+        best_score = max(
+            best_score,
+            sum(1 for header in REQUIRED_HEADERS if header in seen),
+        )
+    return best_score
+
+
 def build_entries(xlsx_path: Path, sheet_name: str | None) -> list[Entry]:
     sheet_names, sheet_targets, archive = load_workbook_parts(xlsx_path)
     try:
-        selected_sheet = sheet_name or sheet_names[0]
+        shared_strings = load_shared_strings(archive)
+
+        selected_sheet = sheet_name
+        if selected_sheet is None:
+            selected_sheet = max(
+                sheet_names,
+                key=lambda name: score_sheet_for_headers(
+                    archive, sheet_targets[name], shared_strings
+                ),
+            )
+
         if selected_sheet not in sheet_targets:
             raise ValueError(
                 f"Worksheet '{selected_sheet}' not found. Available sheets: {', '.join(sheet_names)}"
             )
 
-        shared_strings = load_shared_strings(archive)
         rows = list(sheet_rows(archive, sheet_targets[selected_sheet], shared_strings))
     finally:
         archive.close()
@@ -216,21 +306,10 @@ def build_entries(xlsx_path: Path, sheet_name: str | None) -> list[Entry]:
     if not rows:
         raise ValueError("Selected worksheet is empty.")
 
-    header_row_number, header_cells = rows[0]
-    header_map = {
-        normalize_header(value): index
-        for index, value in header_cells.items()
-        if normalize_header(value)
-    }
-
-    missing = [header for header in REQUIRED_HEADERS if header not in header_map]
-    if missing:
-        raise ValueError(
-            "Missing required columns: " + ", ".join(missing)
-        )
+    header_row_index, _header_row_number, header_map = detect_header_row(rows)
 
     entries: list[Entry] = []
-    for row_number, row in rows[1:]:
+    for row_number, row in rows[header_row_index + 1 :]:
         values = {
             header: clean_value(row.get(index, ""))
             for header, index in header_map.items()
